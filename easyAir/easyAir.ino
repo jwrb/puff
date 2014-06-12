@@ -1,149 +1,33 @@
-#include "easyAir.h"
+#include "puff.h"
 #include <EEPROM.h>
 
-//Define master button input pin and led if applicable
-const byte masterButton = 7;
-const byte masterButtonLed = 6;
+//Define pins here according to comments
+Puff puff(12, // button    = Main command input pin               [0] -  Digital/INPUT
+          13, // buttonLed = LED for main command input telemetry [1] -  Digital/OUTPUT
+          2, // valveUp1        = Up valve for front driver side       [2] -  Digital/OUTPUT
+          0, // valveDown1      = Down valve for front driver side     [6] -  Digital/OUTPUT
+          0, // valveUp2        = Up valve for front passenger side    [3] -  Digital/OUTPUT
+          0, // valveDown2      = Down valve for front passenger side  [7] -  Digital/OUTPUT
+          3, // valveUp3        = Up valve for rear driver side        [4] -  Digital/OUTPUT
+          0, // valveDown3      = Down valve for rear driver side      [8] -  Digital/OUTPUT
+          0, // valveUp4        = Up valve for rear passenger side     [5] -  Digital/OUTPUT
+          0, // valveDown4      = Down valve for rear passenger side   [9] -  Digital/OUTPUT
+          A0, // leveler1        = Leveler for front driver side        [10] - Analog/INPUT
+          A1, // leveler2        = Leveler for front passenger side     [11] - Analog/INPUT
+          0, // leveler3        = Leveler for rear driver side         [12] - Analog/INPUT
+          0, // leveler4        = Leveler for rear passenger side      [13] - Analog/INPUT
+          0,// X               = X axis for manual adjust joystick    [14] - Analog/INPUT
+          0,// Y               = Y axis for manual adjust joystick    [15] - Analog/INPUT
+          0 // Select          = Joystick button for up/down direction[16] - Analog/INPUT
+);
 
-//Define valve pins (valveUp1, valveDown1, valveUp2, valveDown2.....)
-Valves valves(13,11,12,10,0,0,0,0);
-
-//Define leveler pins (leveler1, leveler2.....)
-Levels levels(A0,A1,0,0);
-
-//Define manual button pins (X axis, Y axis, Select Button)
-Buttons buttons(A4,A3,6);
-
-//Other library initializations and variables (no need to edit)
-easyAir easyAir;
-Heights height;
-Helper helper;
-
-byte activate = 0;
-byte pushes = 0;
-
-void setup() {
+void setup() { 
+  //Run setup function for puff
+  puff.setup();
   Serial.begin(9600);
-  pinMode(masterButton, INPUT);
-  pinMode(masterButtonLed, OUTPUT);
-  digitalWrite(masterButtonLed, HIGH);
-  valves.killAll();
-  levels.updateLevels();
-  digitalWrite(bag[2][4], HIGH);
-  //Sets the manual adjustment direction to up. 1 for down.
-  buttons.upDown = 0;  
-  Serial.print("Ready for command...");
 }
+
 
 void loop() {
-  helper.mbs = digitalRead(masterButton);
-  if (helper.mbs == HIGH)
-  {
-    helper.activate = 1;
-    delay(150);
-    helper.readyBlink(masterButtonLed, 1, 100);
-  }
-  
-  if (helper.activate == 1)
-  {
-    Serial.println("Please select height");
-    helper.mbs = LOW;
-    helper.updateTimer();
-    while(helper.time < helper.nextUpdate)
-    {
-      helper.time = millis();
-      helper.mbs2 = digitalRead(masterButton);
-      if (helper.mbs2 == HIGH)
-      {
-        pushes = pushes++;
-        if (pushes < 5)
-        {
-          helper.nextUpdate = helper.nextUpdate + 500;
-        }
-        digitalWrite(helper.mbs2, LOW);
-        delay(150);
-      }
-    }
-  }
-  if (helper.activate == 1 && pushes > 0)
-  {
-    Serial.println("Adjusting bags");
-    helper.readyBlink(masterButtonLed, pushes, 150);
-    height.current = pushes;
-    height.updateHeights();
-    levels.updateLevels();
-    printInfo();
-    adjustBags();
-    cleanUp();
-  }
-  
-  if (helper.activate == 1 && pushes == 0)
-  {
-    Serial.println("No height selected");
-    cleanUp();
-  }
-  
-  if (helper.activate ==2)
-  {
-    Serial.println("Programming mode entered...");
-    cleanUp();
-  }
-  buttons.manualAdjust();
+  puff.go(); //Run main code for puff
 }
-
-void adjustBags()
-{
-  helper.mbs2 = LOW;
-  digitalWrite(masterButtonLed, LOW);
-  levels.updateLevels();
-  while (helper.mbs3 != HIGH)
-  {
-    helper.mbs3 = digitalRead(masterButton);
-    valves.adjust();
-    levels.updateLevels();
-    
-    if (bag[0][2] == bag[0][3] && bag[1][2] == bag[1][3])
-    {
-    Serial.println("Bags adjusted");
-    Serial.println("");
-    helper.mbs3 = HIGH;
-    }
-  }
-}
-
-void cleanUp()
-{
-  valves.killAll();
-  helper.activate = 0;
-  pushes = 0;
-  helper.mbs2 = LOW;
-  helper.mbs3 = LOW;
-  Serial.print("Ready for command...");
-  digitalWrite(masterButtonLed, HIGH);
-  delay(300);
-}
-
-void printInfo()
-{
-  if (pushes > 8 && pushes < 20)
-  {
-    Serial.println("All down selected");
-  } else {
-    Serial.print("Height ");
-    Serial.print(pushes);
-    Serial.println(" selected");
-  }
-  Serial.println("----------------");
-  Serial.print("Bag 1 set level: ");
-  Serial.println(bag[0][3]);
-  Serial.print("Bag 2 set level: ");
-  Serial.println(bag[1][3]);
-  Serial.print("Bag 3 set level: ");
-  Serial.println(bag[2][3]);
-  Serial.print("Bag 4 set level: ");
-  Serial.println(bag[3][3]);
-  Serial.println("----------------");
-}
-
-
-
